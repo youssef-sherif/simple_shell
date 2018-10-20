@@ -1,0 +1,5 @@
+/bin/**
+/obj/**
+/simple_shell.cbp
+/simple_shell.depend
+/simple_shell.layout
