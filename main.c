@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,116 +7,150 @@
 /*
 * Constant definitions
 */
-#define CMD_SIZE 10
+#define MAX_INSTR_SIZE 20
 #define ARG_SIZE 5
 #define MAX_NO_OF_ARGS 10
 
-/*
-*  Structs
-*/
-
-struct Command
-{
-   char *  cmd;
-   char ** args;
-   int     type;
-} command;
 
 /*
 *  Functions prototypes
 */
-char * read_cmd(struct Command * command);
-char ** read_args(char * cmd);
+
+void log_process(int pid);
+char * read_instr(int *in_background);
+char ** read_args(int in_background);
 
 /*
 *  Functions definitions
 */
-char * read_cmd(struct Command * command)
+
+void log_process(int sig)
 {
-    char *  cmd  = malloc(sizeof(char) * CMD_SIZE);
+    printf("logging...\n");
+}
 
-    if(!cmd)
-    {
-        printf("Error");
-        exit(EXIT_FAILURE);
-    }
+char * read_instr(int * in_background)
+{
+    char * instr = (char *) malloc(sizeof(char) * MAX_INSTR_SIZE);
 
-    int c, i = 0;
+    int c, i = 0, has_args;
 
-    while(1)
+    do
     {
         c = getchar();
 
         if(c == ' ')
         {
-            if(strlen(cmd) == 0)
+            if(i != 0)
             {
-                continue;
-            }
-            command->args = read_args(cmd);
-            return cmd;
-        }
-        else if(c == '\n')
-        {
-            return cmd;
-        }
-
-        cmd[i] = c;
-
-        i++;
-    }
-
-    return cmd;
-}
-
-char ** read_args(char * cmd)
-{
-    char ** args = malloc(sizeof(char **) * MAX_NO_OF_ARGS);
-
-    int c = ' ', i = -1, j = 0;
-    while(1)
-    {
-        if(c == ' ')
-        {
-            c = getchar();
-            if(c != ' ')
-            {
-                i++;
-                j = 0;
+                break;
             }
         }
-        else if(c == '\n')
+        else if(c == '&')
         {
-            return args;
+            *in_background = 1;
         }
         else
         {
-            c = getchar();
+            instr[i] = c;
+
+            i++;
+        }
+    } while(c != '\n');
+
+    return instr;
+}
+
+char ** read_args(int in_background)
+{
+    char ** args = (char **) malloc(sizeof(char *) * MAX_NO_OF_ARGS);
+    int c, i = -1, j = 0;
+
+    if(in_background)
+    {
+        args[0] = (char *) realloc(args[0], sizeof(char) * ARG_SIZE );
+        return args;
+    }
+
+    do {
+        c = getchar();
+
+        // Ignore white spaces
+        if(c == ' ')
+        {
+            do {
+                c = getchar();
+            } while(c == ' ');
+            i++;
+            j = 0;
         }
 
-        args[i] = malloc(sizeof(char *) * ARG_SIZE);
-        args[i][j] = c;
+        if(i == -1)
+        {
+            i = 0;
+        }
 
-        printf("%d %d %c \n", i, j, args[i][j]);
+        args[i] = (char *) realloc(args[0], sizeof(char) * ARG_SIZE );
+        args[i][j] = c;
+        printf("arg[%d][%d] = %c \n", i, j, args[i][j]);
 
         j++;
-    }
+
+    } while(c != '\n');
 
     return args;
 }
 
-int main()
+void main()
 {
-    struct Command command;
+    char *instr;
+    char ** args;
+
+    int in_background, status;
 
     do
     {
-        printf("$");
-        command.cmd = read_cmd( &command );
+        in_background = 0;
+        status = 0;
+        printf("\n$");
 
-    } while( strcmp(command.cmd, "exit\0") );
+        instr = read_instr(&in_background);
+        args = read_args(in_background);
+
+        printf("instruction: %s \n background: %d \n", instr, in_background);
+
+        pid_t childId = fork();
+
+        signal(SIGCHLD, log_process);
+
+        if(childId < 0)
+        {
+            printf("Error forking parent\n");
+        }
+        else if(childId == 0)
+        {
+            // Child process
+
+            if( execvp(instr, args) == -1 )
+            {
+                printf("Instruction not found: %s" , instr);
+            }
+        }
+        else
+        {
+            // Parent process
+
+            if( !in_background )
+            {
+                wait(&status);
+            }
+        }
+
+        free(instr);
+        free(args);
+
+    } while( strcmp( instr, "exit\0" ) );
 
     exit(EXIT_SUCCESS);
 
-    return 0;
 }
