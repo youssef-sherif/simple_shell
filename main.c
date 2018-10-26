@@ -31,7 +31,14 @@ pid_t terminate();
 
 void log_process_handler(int sig, siginfo_t siginfo)
 {
-    printf("logging process %d ... \n", siginfo.si_pid);
+
+    FILE * fp;
+    fp = fopen( "pocesses_log", "a" );
+
+    fprintf(fp, "logging process ... \n");
+
+    fclose(fp);
+
 }
 
 pid_t terminate()
@@ -43,6 +50,14 @@ pid_t terminate()
         printf("No running processes \n");
         return pid;
     }
+
+    FILE * fp;
+    fp = fopen( "terminated_processes", "a" );
+
+    fprintf(fp, "terminated process %d ... \n", pid);
+
+    fclose(fp);
+
     printf("Process %d terminated \n", pid);
 
     return pid;
@@ -164,9 +179,9 @@ char * read_instr(int * in_background, int * has_args)
 
 char ** read_args(char * instr, int *in_background, int has_args)
 {
-    char ** args = (char **) malloc(sizeof(char *) * MAX_NO_OF_ARGS);
-    args[0] = (char *) malloc(sizeof(char) * ARG_SIZE );
-    strcat(args[0], instr);
+    char ** args = (char **) malloc( sizeof(char *) * MAX_NO_OF_ARGS );
+    args[0] = (char *) malloc( sizeof(char) * ARG_SIZE );
+    strcpy(args[0], instr);
 
     if(*in_background || !has_args)
     {
@@ -181,7 +196,11 @@ char ** read_args(char * instr, int *in_background, int has_args)
         if(c == ' ')
         {
             c = getchar();
-            if(c != ' ')
+            if(c == '\n')
+            {
+                break;
+            }
+            else
             {
                 // Check in background
                 if(c == '&')
@@ -189,15 +208,14 @@ char ** read_args(char * instr, int *in_background, int has_args)
                     *in_background = 1;
                     break;
                 }
-                args[++i] = (char *) malloc( sizeof(char) * ARG_SIZE );
+                i++;
                 j = 0;
-            }
-            else
-            {
-                continue;
-            }
-        }
+                args[i] = (char *) malloc( sizeof(char) * ARG_SIZE );
 
+
+            }
+            continue;
+        }
 
         else if(c == '\n')
         {
@@ -205,7 +223,6 @@ char ** read_args(char * instr, int *in_background, int has_args)
         }
 
         args[i][j] = c;
-        printf("%d %d %c\n", i, j, args[i][j]);
         args[i][++j] = '\0';
 
         c = getchar();
@@ -250,7 +267,6 @@ int main()
         if(built_in)
         {
             exec_built_in(instr);
-            free(instr);
             printf(">>");
 
             continue;
@@ -258,9 +274,10 @@ int main()
 
         args = read_args(instr, &in_background, has_args);
 
-        printf("instr: %s \narg0: %s \narg1: %s \n", instr, args[0], args[1]);
+        printf("instr: %s \narg0: %s \narg1: %s \narg2: %s \narg3: %s \n", instr, args[0], args[1], args[2], args[3]);
 
         pid_t childId = fork();
+
 
         sigaction(SIGCHLD, &sa, NULL);
 
@@ -294,11 +311,9 @@ int main()
         }
 
         free(instr);
-        i = 0;
-        while(args[i])
+        for(i = 0; i < MAX_NO_OF_ARGS; i++)
         {
-            free(args[i]);
-            i++;
+            args[i] = NULL;
         }
         free(args);
     }
