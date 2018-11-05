@@ -33,7 +33,7 @@ void log_process_handler(int sig, siginfo_t siginfo)
 {
 
     FILE * fp;
-    fp = fopen( "pocesses", "a" );
+    fp = fopen( "processes", "a" );
 
     fprintf(fp, "logging process ... \n");
 
